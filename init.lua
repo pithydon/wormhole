@@ -31,7 +31,7 @@ minetest.register_node("wormhole:wormhole", {
 			{-0.5, -0.5, 0.5, 0.5, 0.5, 1}
 		},
 	},
-	groups = {dig_immediate = 2},
+	groups = {dig_immediate = 2, wormhole = 1},
 	on_place = function(itemstack, placer, pointed_thing)
 		if minetest.check_player_privs(placer, "wormhole") then
 			return minetest.item_place(itemstack, placer, pointed_thing, param2)
@@ -84,6 +84,79 @@ minetest.register_on_player_receive_fields(function(player, formname, fields)
 	end
 end)
 
+local file = io.open(minetest.get_worldpath().."/wormholes.txt", "r")
+if file ~= nil then
+	local list_string = file:read("*a")
+	file:close()
+	local list = list_string:split("\n")
+	local pos_table = {}
+	for _,v in ipairs(list) do
+		local pos = minetest.string_to_pos(v)
+		if pos then
+			table.insert(pos_table, pos)
+		end
+	end
+	for _,v in ipairs(pos_table) do
+		local round_for_name = vector.round(v)
+		local v_string = minetest.pos_to_string(v)
+		minetest.register_node("wormhole:wormhole_"..round_for_name.x.."_"..round_for_name.y.."_"..round_for_name.z, {
+			description = "Wormhole to "..v.x..", "..v.y..", "..v.z,
+			paramtype = "light",
+			light_source = 10,
+			walkable = false,
+			inventory_image = "wormhole_placer.png",
+			wield_image = "wormhole_placer.png",
+			tiles = {"wormhole_t_"..v.x.."_"..v.y.."_"..v.z..".png", "wormhole_b_"..v.x.."_"..v.y.."_"..v.z..".png",
+					"wormhole_e_"..v.x.."_"..v.y.."_"..v.z..".png", "wormhole_w_"..v.x.."_"..v.y.."_"..v.z..".png",
+					"wormhole_n_"..v.x.."_"..v.y.."_"..v.z..".png", "wormhole_s_"..v.x.."_"..v.y.."_"..v.z..".png"},
+			drawtype = "nodebox",
+			node_box = {
+				type = "fixed",
+				fixed = {
+					{-0.5, -1, -0.5, 0.5, 1, 0.5},
+					{-1, -0.5, -0.5, -0.5, 0.5, 0.5},
+					{0.5, -0.5, -0.5, 1, 0.5, 0.5},
+					{-0.5, -0.5, -1, 0.5, 0.5, -0.5},
+					{-0.5, -0.5, 0.5, 0.5, 0.5, 1}
+				},
+			},
+			groups = {dig_immediate = 2, wormhole = 1},
+			on_construct = function(pos)
+				local meta = minetest.get_meta(pos)
+				meta:set_string("to_pos", v_string)
+			end,
+			on_place = function(itemstack, placer, pointed_thing)
+				if minetest.check_player_privs(placer, "wormhole") then
+					return minetest.item_place(itemstack, placer, pointed_thing, param2)
+				else
+					return itemstack
+				end
+			end,
+			after_place_node = function(pos, placer, itemstack, pointed_thing)
+				table.insert(wormholes, pos)
+			end,
+			can_dig = function(pos, player)
+				if minetest.check_player_privs(player, "wormhole") then
+					return true
+				else
+					return false
+				end
+			end,
+			after_destruct = function(pos, oldnode)
+				local pos_string = minetest.pos_to_string(pos)
+				for i,v in ipairs(wormholes) do
+					local v_string = minetest.pos_to_string(v)
+					if pos_string == v_string then
+						table.remove(wormholes, i)
+					end
+				end
+			end,
+			on_blast = function(pos, intensity)
+			end
+		})
+	end
+end
+
 minetest.register_globalstep(function(dtime)
 	for _,pos in ipairs(wormholes) do
 		local objs = minetest.get_objects_inside_radius({x = pos.x, y = pos.y - 0.5, z = pos.z}, 1.4)
@@ -110,7 +183,7 @@ end)
 
 minetest.register_lbm({
 	name = "wormhole:index_wormholes",
-	nodenames = {"wormhole:wormhole"},
+	nodenames = {"group:wormhole"},
 	run_at_every_load = true,
 	action = function(pos)
 		table.insert(wormholes, pos)
