@@ -10,6 +10,15 @@ local remove_name = function(name)
 	end
 end
 
+local contains = function(t, e)
+	for _,v in pairs(t) do
+		if v == e then
+			return true
+		end
+	end
+	return false
+end
+
 minetest.register_privilege("wormhole", {description = "Allows you to manage wormholes.", give_to_singleplayer = false})
 
 minetest.register_node("wormhole:wormhole", {
@@ -158,23 +167,20 @@ if file ~= nil then
 end
 
 minetest.register_globalstep(function(dtime)
-	for _,pos in ipairs(wormholes) do
-		local objs = minetest.get_objects_inside_radius({x = pos.x, y = pos.y - 0.5, z = pos.z}, 1.4)
-		for _,v in ipairs(objs) do
-			if v:is_player() then
-				local name = v:get_player_name()
-				for _,v in ipairs(on_hold) do
-					if v == name then
-						return
+	for _,v in ipairs(wormholes) do
+		local meta = minetest.get_meta(v)
+		local to_pos_string = meta:get_string("to_pos")
+		local to_pos = minetest.string_to_pos(to_pos_string)
+		if to_pos then
+			local objs = minetest.get_objects_inside_radius({x = v.x, y = v.y - 0.5, z = v.z}, 1.4)
+			for _,v in ipairs(objs) do
+				if v:is_player() then
+					local name = v:get_player_name()
+					if not contains(on_hold, name) then
+						table.insert(on_hold, name)
+						v:setpos(to_pos)
+						minetest.after(1.5, remove_name, name)
 					end
-				end
-				local meta = minetest.get_meta(pos)
-				local to_pos_string = meta:get_string("to_pos")
-				local to_pos = minetest.string_to_pos(to_pos_string)
-				if to_pos then
-					table.insert(on_hold, name)
-					v:setpos(to_pos)
-					minetest.after(1.5, remove_name, name)
 				end
 			end
 		end
@@ -186,6 +192,13 @@ minetest.register_lbm({
 	nodenames = {"group:wormhole"},
 	run_at_every_load = true,
 	action = function(pos)
+		local pos_string = minetest.pos_to_string(pos)
+		for _,v in ipairs(wormholes) do
+			local v_string = minetest.pos_to_string(v)
+			if pos_string == v_string then
+				return
+			end
+		end
 		table.insert(wormholes, pos)
 	end
 })
